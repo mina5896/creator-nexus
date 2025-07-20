@@ -1,0 +1,100 @@
+
+import React from 'react';
+import { NavLink, Link } from 'react-router-dom';
+import { ICONS } from '../../constants';
+import { useAppContext } from '../../contexts/AppContext';
+
+interface SidebarProps {
+  onLogout: () => void;
+}
+
+interface NavItemProps {
+  to: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  badgeCount?: number;
+  badgeTitle?: string;
+}
+
+const NavItem: React.FC<NavItemProps> = ({ to, icon, children, badgeCount, badgeTitle }) => {
+    const activeClass = "bg-brand-primary text-white";
+    const inactiveClass = "text-brand-text-muted hover:bg-brand-surface hover:text-brand-text";
+
+    return (
+        <NavLink
+            to={to}
+            title={badgeTitle}
+            className={({ isActive }) => `${isActive ? activeClass : inactiveClass} flex items-center justify-between px-4 py-3 rounded-lg transition-colors duration-200`}
+        >
+            <div className="flex items-center">
+                {icon}
+                <span className="ml-4 font-medium">{children}</span>
+            </div>
+            {badgeCount > 0 && (
+                <span className="bg-brand-secondary text-brand-background text-xs font-bold px-2 py-0.5 rounded-full">{badgeCount}</span>
+            )}
+        </NavLink>
+    );
+};
+
+const UserProfileLink: React.FC = () => {
+    const { user } = useAppContext();
+    return (
+        <Link to="/profile" className="block p-3 mb-6 rounded-lg bg-brand-subtle/30 hover:bg-brand-subtle transition-colors">
+            <div className="flex items-center gap-3">
+                <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
+                <div>
+                    <p className="font-semibold text-brand-text leading-tight">{user.name}</p>
+                    <p className="text-xs text-brand-text-muted leading-tight">{user.email}</p>
+                </div>
+            </div>
+        </Link>
+    );
+};
+
+const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
+  const { invites, user, projects, applications } = useAppContext();
+  const pendingInvitesCount = invites.filter(inv => inv.status === 'pending').length;
+  
+  const ownerProjectIds = projects.filter(p => p.ownerId === user.id).map(p => p.id);
+  const pendingApplicationsCount = applications.filter(app => ownerProjectIds.includes(app.projectId) && app.status === 'pending').length;
+
+
+  return (
+    <aside className="w-64 bg-brand-surface p-6 flex flex-col justify-between border-r border-brand-subtle">
+      <div>
+        <div className="flex items-center mb-8">
+            <div className="w-10 h-10 bg-gradient-to-br from-brand-primary to-brand-secondary rounded-lg"></div>
+            <h1 className="text-xl font-bold ml-3 text-brand-text">Creator's Nexus</h1>
+        </div>
+        <UserProfileLink />
+        <nav className="space-y-2">
+          <NavItem 
+            to="/dashboard" 
+            icon={ICONS.dashboard} 
+            badgeCount={pendingApplicationsCount}
+            badgeTitle={pendingApplicationsCount > 0 ? `${pendingApplicationsCount} pending application(s)` : 'Dashboard'}
+          >
+            Dashboard
+          </NavItem>
+          <NavItem to="/discover" icon={ICONS.compass}>Discover</NavItem>
+          <NavItem to="/invites" icon={ICONS.mail} badgeCount={pendingInvitesCount}>Invites</NavItem>
+          <NavItem to="/portfolio" icon={ICONS.portfolio}>My Portfolio</NavItem>
+          <NavItem to="/find-talent" icon={ICONS.find}>Find Talent</NavItem>
+          <NavItem to="/messages" icon={ICONS.messages}>Messages</NavItem>
+        </nav>
+      </div>
+      <div>
+        <button
+            onClick={onLogout}
+            className="flex items-center w-full px-4 py-3 text-brand-text-muted hover:bg-brand-surface hover:text-brand-text rounded-lg transition-colors duration-200"
+        >
+            {ICONS.logout}
+            <span className="ml-4 font-medium">Log Out</span>
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+export default Sidebar;
