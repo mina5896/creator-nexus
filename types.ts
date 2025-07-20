@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   name: string;
@@ -26,6 +25,7 @@ export interface Collaborator {
   role: string;
   specialty: string;
   bio: string;
+  avatarUrl?: string; // Added this property
   compensationType: 'paid' | 'experience';
   hourlyRate?: number;
   portfolio: {

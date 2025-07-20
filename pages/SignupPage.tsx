@@ -1,39 +1,50 @@
-
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAppContext } from '../contexts/AppContext';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
+import { supabase } from '../supabaseClient';
+import Spinner from '../components/ui/Spinner';
 
-interface SignupPageProps {
-  onSignup: () => void;
-}
-
-const SignupPage: React.FC<SignupPageProps> = ({ onSignup }) => {
-  const { updateUser, user } = useAppContext();
+const SignupPage: React.FC = () => {
   const [formData, setFormData] = useState({
       name: '',
       email: '',
       password: '',
       bio: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would involve API calls for creation and validation.
-    // Here we simulate it by updating the context and logging in.
-    updateUser({
-        ...user,
-        name: formData.name,
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.signUp({
         email: formData.email,
-        bio: formData.bio,
-    });
-    onSignup();
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            bio: formData.bio,
+            avatar_url: `https://i.pravatar.cc/150?u=${formData.email}`
+          }
+        }
+      });
+      if (error) throw error;
+      alert('Success! Please check your email for a confirmation link to complete your signup.');
+      navigate('/login'); // Redirect to login page after signup
+    } catch (error: any) {
+      setError(error.error_description || error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -85,8 +96,13 @@ const SignupPage: React.FC<SignupPageProps> = ({ onSignup }) => {
               onChange={handleChange}
               placeholder="Tell us a little about your creative passion."
             />
-            <Button type="submit" className="w-full !py-3">
-              Create Account
+             {error && (
+              <div className="bg-red-500/10 text-red-400 text-sm p-3 rounded-md">
+                {error}
+              </div>
+            )}
+            <Button type="submit" className="w-full !py-3" disabled={loading}>
+               {loading ? <Spinner size="sm" /> : 'Create Account'}
             </Button>
           </form>
         </div>

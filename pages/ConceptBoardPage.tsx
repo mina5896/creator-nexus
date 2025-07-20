@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
-import { ProjectConcept } from '../services/geminiService';
+import { supabase } from '../supabaseClient';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
+import Spinner from '../components/ui/Spinner';
 import { CREATIVE_ROLES, ICONS } from '../constants';
+
+interface ProjectConcept {
+  title: string;
+  description: string;
+  rolesNeeded: string[];
+  imagePrompt: string;
+}
 
 const ConceptBoardPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { addProject } = useAppContext();
+  const { user } = useAppContext();
 
-  // The state passed from the previous page
   const { concept, conceptArt } = (location.state || {}) as { concept: ProjectConcept | undefined; conceptArt: string | undefined };
   
   const [formData, setFormData] = useState({
@@ -22,13 +29,13 @@ const ConceptBoardPage: React.FC = () => {
       rolesNeeded: concept?.rolesNeeded || [],
       isPublic: true
   });
-  
+  const [isLoading, setIsLoading] = useState(false);
   const [roleCategory, setRoleCategory] = useState(Object.keys(CREATIVE_ROLES)[0]);
   const [currentRole, setCurrentRole] = useState(CREATIVE_ROLES[roleCategory][0]);
 
-  // If the user navigates here directly, the state will be missing. Redirect them.
   useEffect(() => {
     if (!concept || !conceptArt) {
+      alert("No concept data found. Redirecting to start over.");
       navigate('/create-project');
     }
   }, [concept, conceptArt, navigate]);
@@ -45,19 +52,53 @@ const ConceptBoardPage: React.FC = () => {
     setCurrentRole(CREATIVE_ROLES[newCategory][0]);
   };
   
-  const handleFinalizeProject = () => {
-    addProject({
-        ...formData,
-        imageUrl: `data:image/jpeg;base64,${conceptArt}`,
-    });
-    alert('Project created successfully!');
-    navigate('/dashboard');
+  const handleFinalizeProject = async () => {
+    if (!user) {
+        alert("You must be logged in to create a project.");
+        return;
+    }
+    setIsLoading(true);
+
+    try {
+        // 1. Insert the main project details
+        const { data: newProject, error: projectError } = await supabase
+            .from('projects')
+            .insert({
+                owner_id: user.id,
+                title: formData.title,
+                description: formData.description,
+                is_public: formData.isPublic,
+                image_url: `data:image/jpeg;base64,${conceptArt}`,
+                status: 'planning',
+                budget_total: 0, // Default budget
+                budget_spent: 0,
+            })
+            .select()
+            .single();
+
+        if (projectError) throw projectError;
+        
+        // 2. Insert the roles needed for the new project
+        if (formData.rolesNeeded.length > 0) {
+            const rolesToInsert = formData.rolesNeeded.map(role => ({
+                project_id: newProject.id,
+                role_name: role,
+            }));
+            const { error: rolesError } = await supabase.from('project_roles_needed').insert(rolesToInsert);
+            if (rolesError) throw rolesError;
+        }
+
+        alert('Project created successfully!');
+        navigate(`/project/${newProject.id}`); // Navigate to the new project's detail page
+    } catch (error) {
+        console.error("Error creating project:", error);
+        alert(`Failed to create project: ${error.message}`);
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  if (!concept || !conceptArt) {
-    // Render nothing while redirecting
-    return null;
-  }
+  if (!concept || !conceptArt) return null; // Render nothing while redirecting
 
   return (
     <div>
@@ -126,10 +167,10 @@ const ConceptBoardPage: React.FC = () => {
       
       <div className="mt-8 flex justify-center gap-4">
         <Link to="/create-project">
-            <Button variant="ghost">Start Over</Button>
+            <Button variant="ghost" disabled={isLoading}>Start Over</Button>
         </Link>
-        <Button size="lg" onClick={handleFinalizeProject}>
-            Finalize and Create Project
+        <Button size="lg" onClick={handleFinalizeProject} disabled={isLoading}>
+            {isLoading ? <Spinner size="sm" /> : 'Finalize and Create Project'}
         </Button>
       </div>
 

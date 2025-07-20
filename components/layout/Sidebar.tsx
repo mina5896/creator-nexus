@@ -1,8 +1,8 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import { ICONS } from '../../constants';
 import { useAppContext } from '../../contexts/AppContext';
+import { supabase } from '../../supabaseClient';
 
 interface SidebarProps {
   onLogout: () => void;
@@ -30,7 +30,7 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, children, badgeCount, badge
                 {icon}
                 <span className="ml-4 font-medium">{children}</span>
             </div>
-            {badgeCount > 0 && (
+            {badgeCount && badgeCount > 0 && (
                 <span className="bg-brand-secondary text-brand-background text-xs font-bold px-2 py-0.5 rounded-full">{badgeCount}</span>
             )}
         </NavLink>
@@ -38,7 +38,24 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, children, badgeCount, badge
 };
 
 const UserProfileLink: React.FC = () => {
-    const { user } = useAppContext();
+    const { user, loading } = useAppContext();
+
+    if (loading) {
+        return (
+             <div className="block p-3 mb-6 rounded-lg bg-brand-subtle/30 animate-pulse">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-brand-subtle"></div>
+                    <div>
+                        <div className="h-4 w-28 bg-brand-subtle rounded"></div>
+                        <div className="h-3 w-36 bg-brand-subtle rounded mt-1"></div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    if (!user) return null;
+
     return (
         <Link to="/profile" className="block p-3 mb-6 rounded-lg bg-brand-subtle/30 hover:bg-brand-subtle transition-colors">
             <div className="flex items-center gap-3">
@@ -53,12 +70,53 @@ const UserProfileLink: React.FC = () => {
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
-  const { invites, user, projects, applications } = useAppContext();
-  const pendingInvitesCount = invites.filter(inv => inv.status === 'pending').length;
-  
-  const ownerProjectIds = projects.filter(p => p.ownerId === user.id).map(p => p.id);
-  const pendingApplicationsCount = applications.filter(app => ownerProjectIds.includes(app.projectId) && app.status === 'pending').length;
+  const { user } = useAppContext();
+  const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
+  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchCounts = async () => {
+      // Fetch pending invites count
+      const { count: invitesCount, error: invitesError } = await supabase
+        .from('invites')
+        .select('*', { count: 'exact', head: true })
+        .eq('to_user_id', user.id)
+        .eq('status', 'pending');
+      
+      if (invitesError) console.error("Error fetching invites count:", invitesError);
+      else setPendingInvitesCount(invitesCount || 0);
+
+      // Fetch pending applications count for user's projects
+      const { data: ownedProjects, error: projectsError } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('owner_id', user.id);
+      
+      if (projectsError) {
+        console.error("Error fetching owned projects:", projectsError);
+        return;
+      }
+      
+      if (ownedProjects && ownedProjects.length > 0) {
+        const projectIds = ownedProjects.map(p => p.id);
+        const { count: appsCount, error: appsError } = await supabase
+          .from('applications')
+          .select('*', { count: 'exact', head: true })
+          .in('project_id', projectIds)
+          .eq('status', 'pending');
+        
+        if (appsError) console.error("Error fetching applications count:", appsError);
+        else setPendingApplicationsCount(appsCount || 0);
+      }
+    };
+
+    fetchCounts();
+    
+    // TODO: Set up real-time listeners for invites and applications to keep counts updated.
+
+  }, [user]);
 
   return (
     <aside className="w-64 bg-brand-surface p-6 flex flex-col justify-between border-r border-brand-subtle">
@@ -98,3 +156,4 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
 };
 
 export default Sidebar;
+

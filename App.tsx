@@ -1,6 +1,7 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient'; // Import the Supabase client
 import MainLayout from './components/layout/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import PortfolioPage from './pages/PortfolioPage';
@@ -19,22 +20,34 @@ import InvitesPage from './pages/InvitesPage';
 import ConceptBoardPage from './pages/ConceptBoardPage';
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
 
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-  };
+  useEffect(() => {
+    // Check for an active session when the component mounts
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
 
+    // Listen for changes in authentication state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    // Clean up the subscription when the component unmounts
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Logout handler for MainLayout
   const handleLogout = () => {
-    setIsAuthenticated(false);
+    supabase.auth.signOut();
   };
 
   return (
     <AppProvider>
-      {!isAuthenticated ? (
+      {!session ? (
         <Routes>
-          <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
-          <Route path="/signup" element={<SignupPage onSignup={handleLogin} />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       ) : (

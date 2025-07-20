@@ -1,46 +1,25 @@
-
-import React, { useState } from 'react';
-import { findCollaborators, TalentSearchResult } from '../services/geminiService';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
+import { useAppContext } from '../contexts/AppContext';
 import { Collaborator } from '../types';
 import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
 import Card from '../components/ui/Card';
-import Modal from '../components/ui/Modal';
-import { useAppContext } from '../contexts/AppContext';
-import { Link } from 'react-router-dom';
+import PortfolioModal from '../components/projects/PortfolioModal';
 
-const PortfolioModal: React.FC<{ collaborator: Collaborator | null; isOpen: boolean; onClose: () => void }> = ({ collaborator, isOpen, onClose }) => {
-    if (!collaborator) return null;
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`${collaborator.name}'s Portfolio`}>
-            <div className="space-y-6">
-                <div>
-                    <h3 className="text-xl font-bold text-brand-text">{collaborator.name}</h3>
-                    <p className="text-brand-secondary font-semibold">{collaborator.role}</p>
-                    <p className="text-sm text-brand-text-muted mt-1 italic">Specialty: {collaborator.specialty}</p>
-                </div>
-                <p className="text-brand-text-muted">{collaborator.bio}</p>
-                <div>
-                    <h4 className="text-lg font-semibold text-brand-text mb-4">Work Examples</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[40vh] overflow-y-auto pr-2">
-                        {collaborator.portfolio.map((item, index) => (
-                            <div key={index} className="bg-brand-subtle rounded-lg overflow-hidden">
-                                <img src={item.imageUrl} alt={item.title} className="w-full h-40 object-cover" />
-                                <div className="p-4">
-                                    <h5 className="font-bold text-brand-text">{item.title}</h5>
-                                    <p className="text-sm text-brand-text-muted mt-1">{item.description}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="flex justify-end pt-4">
-                    <Button onClick={onClose}>Close</Button>
-                </div>
-            </div>
-        </Modal>
-    );
-};
+interface TalentSearchResult {
+  role: string;
+  candidates: Collaborator[];
+}
+
+// A more specific type for the data needed on this page
+interface ProjectForTalentSearch {
+    id: string;
+    title: string;
+    description: string;
+    rolesNeeded: string[];
+}
 
 const CollaboratorCard: React.FC<{ collaborator: Collaborator, onInvite: () => void, onViewPortfolio: () => void }> = ({ collaborator, onInvite, onViewPortfolio }) => (
     <Card className="flex flex-col">
@@ -65,21 +44,45 @@ const CollaboratorCard: React.FC<{ collaborator: Collaborator, onInvite: () => v
 );
 
 const FindTalentPage: React.FC = () => {
-  const { projects, user, sendInvite } = useAppContext();
+  const { user } = useAppContext();
+  const [projects, setProjects] = useState<ProjectForTalentSearch[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<TalentSearchResult[]>([]);
   const [isPortfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [selectedCollaborator, setSelectedCollaborator] = useState<Collaborator | null>(null);
+
+  useEffect(() => {
+      const fetchOwnerProjects = async () => {
+          if (!user) return;
+          const { data, error } = await supabase
+              .from('projects')
+              .select('id, title, description, roles_needed:project_roles_needed(role_name)')
+              .eq('owner_id', user.id)
+              .neq('status', 'completed');
+          
+          if (error) {
+              console.error("Error fetching projects:", error);
+          } else {
+              const formattedProjects = data.map(p => ({
+                  id: p.id,
+                  title: p.title,
+                  description: p.description,
+                  rolesNeeded: p.roles_needed.map((r: any) => r.role_name)
+              }));
+              setProjects(formattedProjects.filter(p => p.rolesNeeded.length > 0));
+          }
+      };
+      fetchOwnerProjects();
+  }, [user]);
   
-  const projectsWithRolesNeeded = projects.filter(p => p.ownerId === user.id && p.rolesNeeded.length > 0 && p.status !== 'completed');
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) {
-      setError("Please select a project.");
+      setError("Please select a project with open roles.");
       return;
     }
     setError(null);
@@ -87,18 +90,27 @@ const FindTalentPage: React.FC = () => {
     setResults([]);
 
     try {
-      const collaborators = await findCollaborators(selectedProject.description, selectedProject.rolesNeeded);
-      setResults(collaborators);
+      const { data, error: functionError } = await supabase.functions.invoke('find-collaborators', {
+          body: {
+              projectDescription: selectedProject.description,
+              rolesNeeded: selectedProject.rolesNeeded
+          }
+      });
+      if (functionError) throw functionError;
+      setResults(data);
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+      setError(err.message || "An unexpected error occurred while finding collaborators.");
     } finally {
       setIsLoading(false);
     }
   };
   
-  const handleInvite = (role: string) => {
+  const handleInvite = async (role: string) => {
     if (!selectedProjectId) return;
-    sendInvite(selectedProjectId, role);
+    // Note: In a real app, you'd have a UI to select a specific user to invite.
+    // This is a placeholder to show the concept.
+    alert(`An invite for the ${role} role on "${selectedProject?.title}" would be sent here.`);
+    // To make it interactive, we'll remove the role from the results.
     setResults(prevResults => prevResults.filter(r => r.role !== role));
   };
 
@@ -128,12 +140,11 @@ const FindTalentPage: React.FC = () => {
                   required
               >
                   <option value="" disabled>Choose a project...</option>
-                  {projectsWithRolesNeeded.map(p => (
+                  {projects.map(p => (
                       <option key={p.id} value={p.id}>{p.title}</option>
                   ))}
               </select>
-              {projects.length > 0 && projectsWithRolesNeeded.length === 0 && <p className="text-sm text-brand-muted mt-2">All your projects are fully staffed! Create a new project to find more talent.</p>}
-              {projects.length === 0 && <p className="text-sm text-brand-muted mt-2">You don't have any projects yet. <Link to="/create-project" className="text-brand-primary hover:underline">Create one first!</Link></p>}
+              {user && projects.length === 0 && <p className="text-sm text-brand-muted mt-2">All your projects are fully staffed! <Link to="/create-project" className="text-brand-primary hover:underline">Create a new project</Link> to find talent.</p>}
             </div>
 
             {selectedProject && (
@@ -155,12 +166,12 @@ const FindTalentPage: React.FC = () => {
         </form>
       </Card>
 
-      {error && <p className="text-center text-red-400">{error}</p>}
+      {error && <p className="text-center text-red-400 p-4 bg-red-500/10 rounded-md">{error}</p>}
       
       {isLoading && <div className="flex justify-center py-8"><Spinner size="lg"/></div>}
 
       {results.length > 0 && (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-fade-in">
           {results.map(result => (
               <div key={result.role}>
                 <h2 className="text-2xl font-bold text-brand-text mb-4 border-b-2 border-brand-primary pb-2">Suggestions for: <span className="text-brand-secondary">{result.role}</span></h2>
@@ -185,3 +196,4 @@ const FindTalentPage: React.FC = () => {
 };
 
 export default FindTalentPage;
+

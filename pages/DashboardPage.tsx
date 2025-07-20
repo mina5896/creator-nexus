@@ -1,12 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../contexts/AppContext';
+import { supabase } from '../supabaseClient';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Project } from '../types';
+import { Project } from '../types'; // Using the original Project type for structure
 import { ICONS } from '../constants';
+import Spinner from '../components/ui/Spinner';
 
-const ProjectCard: React.FC<{ project: Project; onDelete: (projectId: string) => void; isOwner: boolean; pendingApplicationsCount: number; }> = ({ project, onDelete, isOwner, pendingApplicationsCount }) => {
+// A type for the data we fetch from Supabase, which is slightly different from the component's Project type
+type FetchedProjectType = {
+  id: string;
+  title: string;
+  description: string;
+  status: 'planning' | 'in-progress' | 'completed';
+  owner_id: string;
+  team_members: {
+    profiles: {
+      id: string;
+      name: string;
+      avatar_url: string;
+    } | null;
+  }[];
+  applications: {
+    id: string;
+    status: string;
+  }[];
+};
+
+
+const ProjectCard: React.FC<{ project: FetchedProjectType; onDelete: (projectId: string) => void; isOwner: boolean; }> = ({ project, onDelete, isOwner }) => {
   const navigate = useNavigate();
   
   const statusClasses = {
@@ -15,8 +38,8 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (projectId: string) =>
     completed: 'bg-green-500/20 text-green-300',
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click navigation
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     e.preventDefault();
     if (window.confirm(`Are you sure you want to delete "${project.title}"? This action cannot be undone.`)) {
       onDelete(project.id);
@@ -26,6 +49,8 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (projectId: string) =>
   const handleCardClick = () => {
     navigate(`/project/${project.id}`);
   };
+  
+  const pendingApplicationsCount = project.applications.filter(app => app.status === 'pending').length;
 
   return (
     <Card 
@@ -35,7 +60,7 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (projectId: string) =>
       <div className="relative flex-grow">
         {isOwner && (
           <button
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             className="absolute top-[-10px] right-[-10px] z-10 p-2 bg-brand-surface/80 rounded-full text-brand-text-muted hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100"
             aria-label="Delete project"
           >
@@ -71,14 +96,20 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (projectId: string) =>
           )}
         </div>
         <div className="flex -space-x-2">
-          {project.team.slice(0, 5).map((member, index) => (
-            <div key={index} className="h-8 w-8 rounded-full bg-brand-primary flex items-center justify-center text-white text-xs font-bold ring-2 ring-brand-surface" title={member.name}>
-                {member.name.charAt(0)}
-            </div>
+          {project.team_members.slice(0, 5).map((member, index) => (
+            member.profiles ? (
+              <img 
+                key={member.profiles.id}
+                src={member.profiles.avatar_url}
+                alt={member.profiles.name}
+                title={member.profiles.name}
+                className="h-8 w-8 rounded-full object-cover ring-2 ring-brand-surface"
+              />
+            ) : null
           ))}
-          {project.team.length > 5 && (
+          {project.team_members.length > 5 && (
              <div className="h-8 w-8 rounded-full bg-brand-subtle flex items-center justify-center text-white text-xs font-bold ring-2 ring-brand-surface">
-                +{project.team.length - 5}
+                +{project.team_members.length - 5}
             </div>
           )}
         </div>
@@ -88,9 +119,94 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (projectId: string) =>
 };
 
 const DashboardPage: React.FC = () => {
-  const { projects, deleteProject, user, applications } = useAppContext();
-  
-  const userProjects = projects.filter(p => p.ownerId === user.id || p.team.some(member => member.userId === user.id));
+  const { user } = useAppContext();
+  const [projects, setProjects] = useState<FetchedProjectType[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProjects = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+
+    // Get IDs of projects the user owns
+    const { data: ownedProjects, error: ownedError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('owner_id', user.id);
+
+    // Get IDs of projects the user is a team member of
+    const { data: memberProjects, error: memberError } = await supabase
+      .from('team_members')
+      .select('project_id')
+      .eq('user_id', user.id);
+
+    if (ownedError || memberError) {
+      console.error("Error fetching project associations:", ownedError || memberError);
+      setLoading(false);
+      return;
+    }
+    
+    const ownedIds = ownedProjects?.map(p => p.id) || [];
+    const memberIds = memberProjects?.map(p => p.project_id) || [];
+    const projectIds = [...new Set([...ownedIds, ...memberIds])];
+
+    if (projectIds.length === 0) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch full project data for the identified projects
+    const { data, error } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        title,
+        description,
+        status,
+        owner_id,
+        team_members (
+          profiles (
+            id,
+            name,
+            avatar_url
+          )
+        ),
+        applications (
+          id,
+          status
+        )
+      `)
+      .in('id', projectIds);
+
+    if (error) {
+      console.error("Error fetching projects:", error);
+    } else if (data) {
+      setProjects(data as unknown as FetchedProjectType[]);
+    }
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  const handleDeleteProject = async (projectId: string) => {
+    const { error } = await supabase.from('projects').delete().eq('id', projectId);
+    if (error) {
+      alert("Error deleting project: " + error.message);
+    } else {
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      alert("Project deleted successfully.");
+    }
+  };
+
+  if (loading) {
+    return (
+        <div className="flex justify-center items-center h-full">
+            <Spinner size="lg" />
+        </div>
+    );
+  }
 
   return (
     <div>
@@ -102,30 +218,26 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {userProjects.map(project => {
-          const pendingApplicationsCount = applications.filter(
-            app => app.projectId === project.id && app.status === 'pending'
-          ).length;
-
-          return (
+        {projects.map(project => (
             <ProjectCard 
               key={project.id} 
-              project={project} 
-              onDelete={deleteProject} 
-              isOwner={project.ownerId === user.id}
-              pendingApplicationsCount={pendingApplicationsCount}
+              project={project}
+              onDelete={handleDeleteProject} 
+              isOwner={project.owner_id === user?.id}
             />
-          );
-        })}
-        {userProjects.length === 0 && (
+          )
+        )}
+      </div>
+
+      {!loading && projects.length === 0 && (
           <div className="col-span-full text-center py-16 border-2 border-dashed border-brand-subtle rounded-lg">
               <h3 className="text-xl font-semibold text-brand-text">No projects yet!</h3>
               <p className="mt-2 text-brand-text-muted">Click "+ New Project" to get started, or check the "Discover" page for opportunities.</p>
           </div>
       )}
-      </div>
     </div>
   );
 };
 
 export default DashboardPage;
+

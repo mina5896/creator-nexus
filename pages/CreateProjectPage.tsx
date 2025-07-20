@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient'; // Import supabase client
 import Button from '../components/ui/Button';
 import Textarea from '../components/ui/Textarea';
 import Card from '../components/ui/Card';
 import Spinner from '../components/ui/Spinner';
-import { generateProjectConcept, generateConceptArt, ProjectConcept } from '../services/geminiService';
 import { ICONS } from '../constants';
 
 const CreateProjectPage: React.FC = () => {
@@ -23,13 +23,19 @@ const CreateProjectPage: React.FC = () => {
     setError(null);
 
     try {
-      // Step 1: Generate the project concept (title, description, roles, image prompt)
-      const concept = await generateProjectConcept(idea);
-      
-      // Step 2: Generate the concept art using the prompt from the concept
-      const conceptArt = await generateConceptArt(concept.imagePrompt);
+      // Invoke the secure Supabase Edge Function
+      const { data, error: functionError } = await supabase.functions.invoke('create-project-concept', {
+        body: { idea },
+      });
 
-      // Step 3: Navigate to the concept board with the generated data
+      if (functionError) {
+        throw new Error(functionError.message);
+      }
+      
+      // The function returns both the concept and the base64 image string
+      const { concept, conceptArt } = data;
+
+      // Navigate to the concept board with the generated data
       navigate('/create/concept', { 
         state: { 
           concept,
@@ -38,8 +44,12 @@ const CreateProjectPage: React.FC = () => {
       });
 
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred while generating the concept. Please try again.");
-      setIsLoading(false);
+      const errorMessage = err.message.includes('Function returned a non-200 status code')
+        ? "The AI Creative Director couldn't generate a concept. Please try a different idea."
+        : err.message;
+      setError(errorMessage);
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -76,7 +86,7 @@ const CreateProjectPage: React.FC = () => {
           {error && <p className="text-sm text-red-400">{error}</p>}
           <div className="flex justify-end pt-2">
             <Button type="submit" size="lg" disabled={isLoading}>
-                ✨ Generate Concept
+                {isLoading ? <Spinner size="sm" /> : "✨ Generate Concept"}
             </Button>
           </div>
         </form>
