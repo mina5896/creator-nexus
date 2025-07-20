@@ -1,109 +1,69 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { User } from '../types'; // Your existing User type
+import { User, Session } from '@supabase/supabase-js';
 
-// Define the shape of the context
-interface AppContextType {
-  user: User | null; // User can be null if not logged in or loading
-  loading: boolean;
-  refreshUserProfile: () => Promise<void>; // Function to allow components to trigger a profile refresh
+export interface AppUser extends User {
+  name: string;
+  bio: string;
+  avatarUrl: string;
+  skills: string[];
+  compensationType: 'paid' | 'experience';
+  hourlyRate?: number;
 }
 
-// Create the context
+interface AppContextType {
+  user: AppUser | null;
+  session: Session | null; // Add session back to the type
+  loading: boolean;
+}
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Create the provider component
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null); // Add state for session
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = useCallback(async () => {
-    console.log("Attempting to fetch user profile...");
-    // Get the session first
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  useEffect(() => {
+    // onAuthStateChange is the single source of truth. It fires immediately
+    // with the current session and then listens for all subsequent changes.
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setSession(session); // Set the session state
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-    if (sessionError) {
-      console.error("AppContext: Error getting session:", sessionError);
-      return null;
-    }
-
-    if (session?.user) {
-      console.log("AppContext: Session found for user:", session.user.id);
-      // If a session exists, fetch the corresponding profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          name,
-          email,
-          bio,
-          avatar_url,
-          skills,
-          compensation_type,
-          hourly_rate
-        `)
-        .eq('id', session.user.id)
-        .single();
-
-      if (profileError) {
-        console.error("AppContext: Error fetching profile from database:", profileError);
-        return null;
+          setUser(profile ? {
+            ...(session.user),
+            name: profile.name,
+            bio: profile.bio,
+            avatarUrl: profile.avatar_url,
+            skills: profile.skills || [],
+            compensationType: profile.compensation_type,
+            hourlyRate: profile.hourly_rate,
+          } : null);
+        } else {
+          setUser(null);
+        }
+        // The loading is finished after the first event is handled.
+        setLoading(false);
       }
-      
-      console.log("AppContext: Profile successfully fetched:", profile);
-      
-      // Map Supabase snake_case to our camelCase User type
-      return {
-        id: profile.id,
-        name: profile.name,
-        email: profile.email,
-        bio: profile.bio,
-        avatarUrl: profile.avatar_url,
-        skills: profile.skills,
-        compensationType: profile.compensation_type,
-        hourlyRate: profile.hourly_rate
-      } as User;
-    }
-    console.log("AppContext: No active session found.");
-    return null;
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  const refreshUserProfile = useCallback(async () => {
-    setLoading(true);
-    const refreshedUser = await fetchUserProfile();
-    setUser(refreshedUser);
-    setLoading(false);
-  }, [fetchUserProfile]);
-
-  useEffect(() => {
-    refreshUserProfile(); // Fetch initial profile
-
-    // Set up a listener for authentication state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log(`AppContext: onAuthStateChange event: ${event}`);
-      if (event === 'SIGNED_IN' && session?.user) {
-        await refreshUserProfile();
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
-
-    // Clean up the subscription on component unmount
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [refreshUserProfile]);
-
-  const value = {
-    user,
-    loading,
-    refreshUserProfile,
-  };
+  const value = { user, session, loading }; // Add session to the context value
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
 
-// Custom hook to use the AppContext
 export const useAppContext = () => {
   const context = useContext(AppContext);
   if (context === undefined) {

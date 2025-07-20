@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
 import { supabase } from '../supabaseClient';
+import { useAppContext } from '../contexts/AppContext';
 import Spinner from '../components/ui/Spinner';
 
 const SignupPage: React.FC = () => {
+  const { session } = useAppContext();
   const [formData, setFormData] = useState({
       name: '',
       email: '',
       password: '',
       bio: ''
   });
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -23,8 +24,8 @@ const SignupPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
         email: formData.email,
@@ -33,19 +34,22 @@ const SignupPage: React.FC = () => {
           data: {
             name: formData.name,
             bio: formData.bio,
-            avatar_url: `https://i.pravatar.cc/150?u=${formData.email}`
-          }
-        }
+          },
+        },
       });
       if (error) throw error;
-      alert('Success! Please check your email for a confirmation link to complete your signup.');
-      navigate('/login'); // Redirect to login page after signup
-    } catch (error: any) {
-      setError(error.error_description || error.message);
+      // NOTE: Navigation is now handled automatically by the router.
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
   };
+  
+  // If a session is detected, redirect to the dashboard.
+  if (session) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-background p-4">
@@ -66,7 +70,8 @@ const SignupPage: React.FC = () => {
               value={formData.name}
               onChange={handleChange}
               placeholder="Your Name"
-              required 
+              required
+              disabled={loading} 
             />
              <Input 
               label="Email Address" 
@@ -76,7 +81,8 @@ const SignupPage: React.FC = () => {
               value={formData.email}
               onChange={handleChange}
               placeholder="you@example.com"
-              required 
+              required
+              disabled={loading} 
             />
             <Input 
               label="Password" 
@@ -87,6 +93,7 @@ const SignupPage: React.FC = () => {
               onChange={handleChange}
               placeholder="••••••••" 
               required
+              disabled={loading} 
             />
             <Textarea
               label="Your Bio"
@@ -95,14 +102,11 @@ const SignupPage: React.FC = () => {
               value={formData.bio}
               onChange={handleChange}
               placeholder="Tell us a little about your creative passion."
+              disabled={loading} 
             />
-             {error && (
-              <div className="bg-red-500/10 text-red-400 text-sm p-3 rounded-md">
-                {error}
-              </div>
-            )}
+             {error && <p className="text-sm text-red-400">{error}</p>}
             <Button type="submit" className="w-full !py-3" disabled={loading}>
-               {loading ? <Spinner size="sm" /> : 'Create Account'}
+              {loading ? <Spinner size="sm" /> : 'Create Account'}
             </Button>
           </form>
         </div>
@@ -118,3 +122,4 @@ const SignupPage: React.FC = () => {
 };
 
 export default SignupPage;
+

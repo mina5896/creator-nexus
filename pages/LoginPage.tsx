@@ -1,35 +1,42 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { supabase } from '../supabaseClient';
 import Spinner from '../components/ui/Spinner';
+import { useAppContext } from '../contexts/AppContext';
 
 const LoginPage: React.FC = () => {
+  const { session } = useAppContext();
   const [email, setEmail] = useState('creator@example.com');
   const [password, setPassword] = useState('password');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (error) throw error;
-      // The onAuthStateChange listener in App.tsx will detect the session
-      // and handle the redirect to the dashboard.
-    } catch (error: any) {
-      setError(error.error_description || error.message);
+      // NOTE: Navigation is now handled automatically by the router
+      // when the session state changes. We don't need to navigate here.
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
   };
+
+  // If a session is detected, redirect to the dashboard.
+  // This prevents a logged-in user from seeing the login page.
+  if (session) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-background p-4">
@@ -50,6 +57,7 @@ const LoginPage: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required 
+              disabled={loading}
             />
             <Input 
               label="Password" 
@@ -59,12 +67,9 @@ const LoginPage: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••" 
               required
+              disabled={loading}
             />
-            {error && (
-              <div className="bg-red-500/10 text-red-400 text-sm p-3 rounded-md">
-                {error}
-              </div>
-            )}
+            {error && <p className="text-sm text-red-400">{error}</p>}
             <Button type="submit" className="w-full !py-3" disabled={loading}>
               {loading ? <Spinner size="sm" /> : 'Log In'}
             </Button>
@@ -82,3 +87,4 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
+
