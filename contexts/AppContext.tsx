@@ -13,7 +13,7 @@ export interface AppUser extends User {
 
 interface AppContextType {
   user: AppUser | null;
-  session: Session | null; // Add session back to the type
+  session: Session | null;
   loading: boolean;
 }
 
@@ -21,45 +21,42 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null); // Add state for session
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // onAuthStateChange is the single source of truth. It fires immediately
-    // with the current session and then listens for all subsequent changes.
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session); // Set the session state
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
+    // onAuthStateChange is the single source of truth. It fires immediately with
+    // the current session and then listens for any future changes.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
-          setUser(profile ? {
-            ...(session.user),
-            name: profile.name,
-            bio: profile.bio,
-            avatarUrl: profile.avatar_url,
-            skills: profile.skills || [],
-            compensationType: profile.compensation_type,
-            hourlyRate: profile.hourly_rate,
-          } : null);
-        } else {
-          setUser(null);
-        }
-        // The loading is finished after the first event is handled.
-        setLoading(false);
+        setUser(profile ? {
+          ...(session.user),
+          name: profile.name,
+          bio: profile.bio,
+          avatarUrl: profile.avatar_url,
+          skills: profile.skills || [],
+          compensationType: profile.compensation_type,
+          hourlyRate: profile.hourly_rate,
+        } : null);
+      } else {
+        setUser(null);
       }
-    );
+      // Once the session is processed, the app is no longer loading.
+      setLoading(false);
+    });
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+    // Cleanup the subscription when the component unmounts
+    return () => subscription.unsubscribe();
   }, []);
 
-  const value = { user, session, loading }; // Add session to the context value
+  const value = { user, session, loading };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
@@ -71,4 +68,3 @@ export const useAppContext = () => {
   }
   return context;
 };
-

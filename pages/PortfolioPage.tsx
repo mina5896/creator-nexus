@@ -66,7 +66,7 @@ const PortfolioPage: React.FC = () => {
       setPortfolioItems(items);
     }
     setLoading(false);
-  }, [user]);
+  },  [user?.id]);
 
   useEffect(() => {
     fetchPortfolioItems();

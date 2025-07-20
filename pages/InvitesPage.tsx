@@ -126,7 +126,7 @@ const InvitesPage: React.FC = () => {
         setInvites(data as any);
     }
     setLoading(false);
-  }, [user]);
+  },  [user?.id]);
 
   useEffect(() => {
     fetchInvites();

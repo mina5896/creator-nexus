@@ -184,7 +184,7 @@ const DashboardPage: React.FC = () => {
       setProjects(data as unknown as FetchedProjectType[]);
     }
     setLoading(false);
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchProjects();

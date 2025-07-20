@@ -75,7 +75,7 @@ const DiscoverPage: React.FC = () => {
       setProjects(data as DiscoverProjectType[]);
     }
     setLoading(false);
-  }, [user]);
+  },  [user?.id]);
 
   useEffect(() => {
     if (!userLoading && user) {

@@ -116,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
     
     // TODO: Set up real-time listeners for invites and applications to keep counts updated.
 
-  }, [user]);
+  }, [user?.id]); // FIX: Depend on the stable user ID, not the whole object.
 
   return (
     <aside className="w-64 bg-brand-surface p-6 flex flex-col justify-between border-r border-brand-subtle">
@@ -156,4 +156,3 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
 };
 
 export default Sidebar;
-

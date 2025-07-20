@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
 import { supabase } from '../supabaseClient';
-import { useAppContext } from '../contexts/AppContext';
 import Spinner from '../components/ui/Spinner';
 
 const SignupPage: React.FC = () => {
-  const { session } = useAppContext();
   const [formData, setFormData] = useState({
       name: '',
       email: '',
@@ -17,6 +15,7 @@ const SignupPage: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -38,7 +37,8 @@ const SignupPage: React.FC = () => {
         },
       });
       if (error) throw error;
-      // NOTE: Navigation is now handled automatically by the router.
+      // After successful sign-up, navigate to the dashboard.
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
     } finally {
@@ -46,11 +46,6 @@ const SignupPage: React.FC = () => {
     }
   };
   
-  // If a session is detected, redirect to the dashboard.
-  if (session) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-background p-4">
       <div className="w-full max-w-md">
@@ -122,4 +117,3 @@ const SignupPage: React.FC = () => {
 };
 
 export default SignupPage;
-

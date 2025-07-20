@@ -75,7 +75,7 @@ const FindTalentPage: React.FC = () => {
           }
       };
       fetchOwnerProjects();
-  }, [user]);
+  },  [user?.id]);
   
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 

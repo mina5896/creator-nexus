@@ -9,17 +9,15 @@ import { CREATIVE_ROLES, AVATARS } from '../constants';
 import { User } from '../types';
 
 const MyProfilePage: React.FC = () => {
-  const { user, loading: userLoading, refreshUserProfile } = useAppContext();
+  const { user, loading: userLoading } = useAppContext();
   const [isEditing, setIsEditing] = useState(false);
   
-  // Form state needs to be managed separately
   const [formData, setFormData] = useState<Partial<User>>({});
   
   const [roleCategory, setRoleCategory] = useState(Object.keys(CREATIVE_ROLES)[0]);
   const [currentRole, setCurrentRole] = useState(CREATIVE_ROLES[roleCategory][0]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // When the user prop is loaded or changes, update the form data
   useEffect(() => {
     if (user) {
       setFormData({
@@ -35,7 +33,6 @@ const MyProfilePage: React.FC = () => {
 
   const handleToggleEdit = (editing: boolean) => {
     setIsEditing(editing);
-    // If we start editing, ensure the form data is fresh
     if (editing && user) {
       setFormData({
         name: user.name,
@@ -88,14 +85,13 @@ const MyProfilePage: React.FC = () => {
     if (error) {
       alert("Error updating profile: " + error.message);
     } else {
-      alert('Profile updated successfully!');
-      await refreshUserProfile(); // Refresh the context data
+      alert('Profile updated successfully! The changes will be reflected shortly.');
       handleToggleEdit(false);
     }
   };
   
   if (userLoading || !user) {
-    return <div>Loading profile...</div>; // Or a spinner
+    return <div>Loading profile...</div>;
   }
 
   const CompensationDisplay = () => {
@@ -121,7 +117,6 @@ const MyProfilePage: React.FC = () => {
                             <img key={avatar} src={avatar} alt="Avatar option" onClick={() => setFormData(p => ({...p, avatarUrl: avatar}))} className={`w-12 h-12 rounded-full cursor-pointer transition-all border-2 ${formData.avatarUrl === avatar ? 'border-brand-primary scale-110' : 'border-transparent hover:border-brand-primary/50'}`} />
                         ))}
                     </div>
-                    {/* Note: Direct avatar uploads would require Supabase Storage */}
                 </div>
               )}
             </div>

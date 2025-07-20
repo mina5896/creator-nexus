@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { supabase } from '../supabaseClient';
 import Spinner from '../components/ui/Spinner';
-import { useAppContext } from '../contexts/AppContext';
 
 const LoginPage: React.FC = () => {
-  const { session } = useAppContext();
   const [email, setEmail] = useState('creator@example.com');
   const [password, setPassword] = useState('password');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,20 +22,14 @@ const LoginPage: React.FC = () => {
         password,
       });
       if (error) throw error;
-      // NOTE: Navigation is now handled automatically by the router
-      // when the session state changes. We don't need to navigate here.
+      // After successful sign-in, navigate to the dashboard.
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
   };
-
-  // If a session is detected, redirect to the dashboard.
-  // This prevents a logged-in user from seeing the login page.
-  if (session) {
-    return <Navigate to="/dashboard" replace />;
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-brand-background p-4">
@@ -87,4 +80,3 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
-
