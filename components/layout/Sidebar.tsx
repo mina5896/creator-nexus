@@ -56,13 +56,13 @@ const UserProfileLink: React.FC = () => {
 
     if (!user) return null;
 
-    return (
+     return (
         <Link to="/profile" className="block p-3 mb-6 rounded-lg bg-brand-subtle/30 hover:bg-brand-subtle transition-colors">
             <div className="flex items-center gap-3">
-                <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
-                <div>
-                    <p className="font-semibold text-brand-text leading-tight">{user.name}</p>
-                    <p className="text-xs text-brand-text-muted leading-tight">{user.email}</p>
+                <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                <div className="min-w-0">
+                    <p className="font-semibold text-brand-text leading-tight truncate">{user.name}</p>
+                    <p className="text-xs text-brand-text-muted leading-tight truncate">{user.email}</p>
                 </div>
             </div>
         </Link>
