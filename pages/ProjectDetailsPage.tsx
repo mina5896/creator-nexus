@@ -7,11 +7,12 @@ import Button from '../components/ui/Button';
 import Spinner from '../components/ui/Spinner';
 import { Collaborator, Task, Project, Application, User, Expense } from '../types';
 
-// Import the new modals
+// Import the modals, including the new ConfirmationModal
 import EditProjectModal from '../components/projects/EditProjectModal';
 import AddTaskModal from '../components/projects/AddTaskModal';
 import AddExpenseModal from '../components/projects/AddExpenseModal';
 import ApplyModal from '../components/projects/ApplyModal';
+import ConfirmationModal from '../components/ui/ConfirmationModal'; // Import the confirmation modal
 
 type ProjectWithDetails = Project & {
     owner: User | null;
@@ -28,10 +29,10 @@ const ProjectDetailsPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // State to manage which modal is open
-    const [modal, setModal] = useState<'edit' | 'addTask' | 'addExpense' | 'apply' | null>(null);
+    const [modal, setModal] = useState<'edit' | 'addTask' | 'addExpense' | 'apply' | 'delete' | null>(null);
     const [roleToApply, setRoleToApply] = useState('');
     const [draggedOverColumn, setDraggedOverColumn] = useState<Task['status'] | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchProjectDetails = useCallback(async () => {
         if (!projectId) return;
@@ -54,14 +55,19 @@ const ProjectDetailsPage: React.FC = () => {
         fetchProjectDetails();
     }, [projectId, fetchProjectDetails]);
 
-    // --- Action Handlers ---
-
     const handleDeleteProject = async () => {
         if (!project || user?.id !== project.ownerId) return;
-        if (window.confirm(`Are you sure you want to delete "${project.title}"? This cannot be undone.`)) {
-            const { error } = await supabase.from('projects').delete().eq('id', project.id);
-            if (error) alert(`Error deleting project: ${error.message}`);
-            else navigate('/dashboard');
+        setIsDeleting(true);
+        
+        const { error } = await supabase.from('projects').delete().eq('id', project.id);
+        
+        setIsDeleting(false);
+        if (error) {
+            // This can be a more sophisticated toast notification in the future
+            alert(`Error deleting project: ${error.message}`);
+        } else {
+            setModal(null); // Close the modal on success
+            navigate('/dashboard');
         }
     };
 
@@ -88,7 +94,6 @@ const ProjectDetailsPage: React.FC = () => {
         else await fetchProjectDetails();
     };
 
-    // --- Drag and Drop Handlers ---
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, taskId: string) => e.dataTransfer.setData("taskId", taskId);
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>, status: Task['status']) => { e.preventDefault(); setDraggedOverColumn(status); };
     const handleDrop = (e: React.DragEvent<HTMLDivElement>, newStatus: Task['status']) => {
@@ -98,30 +103,32 @@ const ProjectDetailsPage: React.FC = () => {
         setDraggedOverColumn(null);
     };
 
-    // --- Render Logic ---
-
     if (loading) return <div className="flex justify-center items-center h-full"><Spinner size="lg" /></div>;
     if (error || !project) return <div className="text-center py-10"><h1 className="text-2xl font-bold text-brand-text">{error}</h1><Link to="/dashboard"><Button className="mt-4">Back</Button></Link></div>;
 
     const isOwner = user?.id === project.ownerId;
     const isTeamMember = project.team.some(member => member.userId === user?.id);
-
+    const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
     const tasksByStatus = {
         todo: project.tasks.filter(t => t.status === 'todo'),
         'in-progress': project.tasks.filter(t => t.status === 'in-progress'),
         done: project.tasks.filter(t => t.status === 'done'),
     };
-    const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
 
     return (
         <div>
             {/* Header */}
             <div className="flex justify-between items-center mb-4">
-                <Link to={isTeamMember ? "/dashboard" : "/discover"} className="text-brand-primary hover:underline text-sm">&larr; Back</Link>
+                 <button 
+                    onClick={() => navigate(-1)} 
+                    className="text-brand-primary hover:underline text-sm"
+                >
+                    &larr; Back
+                </button>
                 {isOwner && (
                     <div className="flex space-x-2">
                         <Button variant="ghost" onClick={() => setModal('edit')}>Edit Project</Button>
-                        <Button variant="ghost" className="!text-red-400 hover:!bg-red-500/10" onClick={handleDeleteProject}>Delete</Button>
+                        <Button variant="ghost" className="!text-red-400 hover:!bg-red-500/10" onClick={() => setModal('delete')}>Delete</Button>
                     </div>
                 )}
             </div>
@@ -229,9 +236,19 @@ const ProjectDetailsPage: React.FC = () => {
             {modal === 'addTask' && <AddTaskModal isOpen={true} onClose={() => setModal(null)} projectId={project.id} team={project.team} onSuccess={fetchProjectDetails} />}
             {modal === 'addExpense' && <AddExpenseModal isOpen={true} onClose={() => setModal(null)} projectId={project.id} currentSpent={project.budget.spent} onSuccess={fetchProjectDetails} />}
             {modal === 'apply' && <ApplyModal isOpen={true} onClose={() => setModal(null)} project={project} role={roleToApply} onSuccess={fetchProjectDetails} />}
+            {modal === 'delete' && (
+                <ConfirmationModal
+                    isOpen={true}
+                    onClose={() => setModal(null)}
+                    onConfirm={handleDeleteProject}
+                    title={`Delete Project: ${project.title}`}
+                    message="Are you sure you want to delete this project? This action is permanent and cannot be undone."
+                    confirmButtonText="Delete"
+                    isConfirming={isDeleting}
+                />
+            )}
         </div>
     );
 };
 
 export default ProjectDetailsPage;
-

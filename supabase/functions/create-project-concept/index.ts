@@ -44,10 +44,11 @@ serve(async (req) => {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
     // Update the prompt to no longer ask for an imagePrompt
-    const conceptGenerationPrompt = `
+    conceptGenerationPrompt = `
       You are an AI Creative Director. Your job is to take a user's raw idea and flesh it out into a compelling project concept.
       User's Idea: "${idea}"
-      Based on this idea, generate a project title, a detailed description, and a list of 3-5 initial creative roles needed.
+      Based on this idea, generate a project title, a detailed description, and a list of 3-5 initial creative roles needed. 
+      The description should be concise and no longer than 2-3 sentences.
       Your response must be a valid JSON object matching this schema:
       {
         "title": "string",

@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import { Project } from '../types'; // Using the original Project type for structure
 import { ICONS } from '../constants';
 import Spinner from '../components/ui/Spinner';
+import ConfirmationModal from '../components/ui/ConfirmationModal'; // Import the new modal
 
 // A type for the data we fetch from Supabase, which is slightly different from the component's Project type
 type FetchedProjectType = {
@@ -29,7 +30,7 @@ type FetchedProjectType = {
 };
 
 
-const ProjectCard: React.FC<{ project: FetchedProjectType; onDelete: (projectId: string) => void; isOwner: boolean; }> = ({ project, onDelete, isOwner }) => {
+const ProjectCard: React.FC<{ project: FetchedProjectType; onDeleteRequest: (project: FetchedProjectType) => void; isOwner: boolean; }> = ({ project, onDeleteRequest, isOwner }) => {
   const navigate = useNavigate();
   
   const statusClasses = {
@@ -41,9 +42,7 @@ const ProjectCard: React.FC<{ project: FetchedProjectType; onDelete: (projectId:
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (window.confirm(`Are you sure you want to delete "${project.title}"? This action cannot be undone.`)) {
-      onDelete(project.id);
-    }
+    onDeleteRequest(project);
   };
   
   const handleCardClick = () => {
@@ -122,18 +121,19 @@ const DashboardPage: React.FC = () => {
   const { user } = useAppContext();
   const [projects, setProjects] = useState<FetchedProjectType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<FetchedProjectType | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProjects = useCallback(async () => {
     if (!user) return;
     setLoading(true);
 
-    // Get IDs of projects the user owns
     const { data: ownedProjects, error: ownedError } = await supabase
       .from('projects')
       .select('id')
       .eq('owner_id', user.id);
 
-    // Get IDs of projects the user is a team member of
     const { data: memberProjects, error: memberError } = await supabase
       .from('team_members')
       .select('project_id')
@@ -155,7 +155,6 @@ const DashboardPage: React.FC = () => {
       return;
     }
 
-    // Fetch full project data for the identified projects
     const { data, error } = await supabase
       .from('projects')
       .select(`
@@ -190,14 +189,30 @@ const DashboardPage: React.FC = () => {
     fetchProjects();
   }, [fetchProjects]);
 
-  const handleDeleteProject = async (projectId: string) => {
-    const { error } = await supabase.from('projects').delete().eq('id', projectId);
+  const handleOpenDeleteModal = (project: FetchedProjectType) => {
+    setProjectToDelete(project);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    setProjectToDelete(null);
+    setIsDeleteModalOpen(false);
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+    setIsDeleting(true);
+
+    const { error } = await supabase.from('projects').delete().eq('id', projectToDelete.id);
+    
     if (error) {
       alert("Error deleting project: " + error.message);
     } else {
-      setProjects(prev => prev.filter(p => p.id !== projectId));
-      alert("Project deleted successfully.");
+      setProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
     }
+    
+    setIsDeleting(false);
+    handleCloseDeleteModal();
   };
 
   if (loading) {
@@ -222,7 +237,7 @@ const DashboardPage: React.FC = () => {
             <ProjectCard 
               key={project.id} 
               project={project}
-              onDelete={handleDeleteProject} 
+              onDeleteRequest={handleOpenDeleteModal} 
               isOwner={project.owner_id === user?.id}
             />
           )
@@ -235,9 +250,20 @@ const DashboardPage: React.FC = () => {
               <p className="mt-2 text-brand-text-muted">Click "+ New Project" to get started, or check the "Discover" page for opportunities.</p>
           </div>
       )}
+
+      {projectToDelete && (
+        <ConfirmationModal
+          isOpen={isDeleteModalOpen}
+          onClose={handleCloseDeleteModal}
+          onConfirm={handleDeleteProject}
+          title={`Delete Project: ${projectToDelete.title}`}
+          message="Are you sure you want to delete this project? This action is permanent and cannot be undone."
+          confirmButtonText="Delete"
+          isConfirming={isDeleting}
+        />
+      )}
     </div>
   );
 };
 
 export default DashboardPage;
-

@@ -13,7 +13,7 @@ const CreateProjectPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleGenerateConcept = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!idea.trim()) {
       setError('Please enter your project idea.');
@@ -32,10 +32,9 @@ const CreateProjectPage: React.FC = () => {
         throw new Error(functionError.message);
       }
       
-      // The function now only returns the concept object
       const { concept } = data;
 
-      // Navigate to the concept board with only the concept data
+      // Navigate to the concept board with the generated data
       navigate('/create/concept', { 
         state: { 
           concept
@@ -50,6 +49,11 @@ const CreateProjectPage: React.FC = () => {
     } finally {
         setIsLoading(false);
     }
+  };
+
+  const handleManualCreate = () => {
+    // Navigate to the same concept page, but with no state
+    navigate('/create/concept');
   };
 
   if (isLoading) {
@@ -72,7 +76,7 @@ const CreateProjectPage: React.FC = () => {
         <p className="text-brand-text-muted mt-4 mb-8">Don't worry about the details. Just write down the spark of your next great project, and let the AI Creative Director help you build the concept.</p>
       </div>
       <Card className="max-w-2xl mx-auto">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleGenerateConcept} className="space-y-6">
           <Textarea
             id="idea"
             label="Your Project Idea"
@@ -83,7 +87,11 @@ const CreateProjectPage: React.FC = () => {
             rows={5}
           />
           {error && <p className="text-sm text-red-400">{error}</p>}
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-end items-center pt-2 gap-4">
+            {/* The new "Create Manually" button */}
+            <Button type="button" variant="ghost" onClick={handleManualCreate}>
+              Create Manually
+            </Button>
             <Button type="submit" size="lg" disabled={isLoading}>
                 {isLoading ? <Spinner size="sm" /> : "✨ Generate Concept"}
             </Button>

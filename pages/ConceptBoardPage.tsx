@@ -20,9 +20,12 @@ const ConceptBoardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAppContext();
 
-  // We no longer receive conceptArt from the previous page
-  const { concept } = (location.state || {}) as { concept: ProjectConcept | undefined };
+  // The concept can now be undefined
+  const { concept } = (location.state || {}) as { concept?: ProjectConcept };
   
+  // Determine if this is the AI flow or manual flow
+  const isAiFlow = !!concept;
+
   const [formData, setFormData] = useState({
       title: concept?.title || '',
       description: concept?.description || '',
@@ -33,13 +36,7 @@ const ConceptBoardPage: React.FC = () => {
   const [roleCategory, setRoleCategory] = useState(Object.keys(CREATIVE_ROLES)[0]);
   const [currentRole, setCurrentRole] = useState(CREATIVE_ROLES[roleCategory][0]);
 
-  useEffect(() => {
-    // We only need to check for the concept now
-    if (!concept) {
-      alert("No concept data found. Redirecting to start over.");
-      navigate('/create-project');
-    }
-  }, [concept, navigate]);
+  // No longer need the useEffect to redirect, as this page now serves both purposes.
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -58,10 +55,13 @@ const ConceptBoardPage: React.FC = () => {
         alert("You must be logged in to create a project.");
         return;
     }
+    if (!formData.title.trim()) {
+        alert("Project Title is required.");
+        return;
+    }
     setIsLoading(true);
 
     try {
-        // 1. Insert the main project details
         const { data: newProject, error: projectError } = await supabase
             .from('projects')
             .insert({
@@ -69,10 +69,9 @@ const ConceptBoardPage: React.FC = () => {
                 title: formData.title,
                 description: formData.description,
                 is_public: formData.isPublic,
-                // Use a default placeholder image URL
                 image_url: `https://picsum.photos/seed/${formData.title.replace(/\s/g, '-')}/1280/720`,
                 status: 'planning',
-                budget_total: 0, // Default budget
+                budget_total: 0,
                 budget_spent: 0,
             })
             .select()
@@ -80,7 +79,6 @@ const ConceptBoardPage: React.FC = () => {
 
         if (projectError) throw projectError;
         
-        // 2. Insert the roles needed for the new project
         if (formData.rolesNeeded.length > 0) {
             const rolesToInsert = formData.rolesNeeded.map(role => ({
                 project_id: newProject.id,
@@ -90,8 +88,17 @@ const ConceptBoardPage: React.FC = () => {
             if (rolesError) throw rolesError;
         }
 
-        alert('Project created successfully!');
-        navigate(`/project/${newProject.id}`); // Navigate to the new project's detail page
+        const { error: teamMemberError } = await supabase
+            .from('project_team_members')
+            .insert({
+                project_id: newProject.id,
+                user_id: user.id,
+                role: 'Team Lead',
+            });
+        
+        if (teamMemberError) throw teamMemberError;
+        
+        navigate(`/project/${newProject.id}`);
     } catch (error: any) {
         console.error("Error creating project:", error);
         alert(`Failed to create project: ${error.message}`);
@@ -100,28 +107,28 @@ const ConceptBoardPage: React.FC = () => {
     }
   };
 
-  if (!concept) return null; // Render nothing while redirecting
-
   return (
     <div>
       <div className="text-center max-w-3xl mx-auto">
         <h1 className="text-4xl font-bold text-brand-text flex items-center justify-center gap-3">
-          {React.cloneElement(ICONS.sparkles, {className: "w-8 h-8 text-brand-secondary"})}
-          Your Concept Board
+          {isAiFlow && React.cloneElement(ICONS.sparkles, {className: "w-8 h-8 text-brand-secondary"})}
+          {isAiFlow ? 'Your Concept Board' : 'Create New Project'}
         </h1>
         <p className="text-brand-text-muted mt-4 mb-8">
-            The AI Creative Director has generated a concept based on your idea. Review and edit the details below, then finalize your project to bring it to life.
+            {isAiFlow 
+                ? "The AI Creative Director has generated a concept based on your idea. Review and edit the details below, then finalize your project."
+                : "Fill in the details for your new project to get started."
+            }
         </p>
       </div>
 
-      {/* The main grid now has one centered column */}
       <div className="max-w-3xl mx-auto">
             <Card>
                 <div className="space-y-6">
-                    <Input label="Project Title" name="title" value={formData.title} onChange={handleInputChange} />
+                    <Input label="Project Title" name="title" value={formData.title} onChange={handleInputChange} required />
                     <Textarea label="Project Description" name="description" value={formData.description} onChange={handleInputChange} rows={6} />
                     <div>
-                        <label className="block text-sm font-medium text-brand-text-muted mb-2">Initial Roles Needed</label>
+                        <label className="block text-sm font-medium text-brand-text-muted mb-2">Roles Needed</label>
                         <div className="flex flex-col sm:flex-row gap-2">
                           <select value={roleCategory} onChange={handleCategoryChange} className="w-full sm:w-1/3 bg-brand-surface border border-brand-subtle rounded-md px-3 py-2 text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-primary">
                               {Object.keys(CREATIVE_ROLES).map(cat => <option key={cat} value={cat}>{cat}</option>)}
@@ -159,11 +166,14 @@ const ConceptBoardPage: React.FC = () => {
       </div>
       
       <div className="mt-8 flex justify-center gap-4">
-        <Link to="/create-project">
-            <Button variant="ghost" disabled={isLoading}>Start Over</Button>
-        </Link>
+        {/* Only show the "Start Over" button if it was an AI flow */}
+        {isAiFlow && (
+            <Link to="/create-project">
+                <Button variant="ghost" disabled={isLoading}>Start Over</Button>
+            </Link>
+        )}
         <Button size="lg" onClick={handleFinalizeProject} disabled={isLoading}>
-            {isLoading ? <Spinner size="sm" /> : 'Finalize and Create Project'}
+            {isLoading ? <Spinner size="sm" /> : (isAiFlow ? 'Finalize Project' : 'Create Project')}
         </Button>
       </div>
 
