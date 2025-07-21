@@ -56,7 +56,7 @@ const UserProfileLink: React.FC = () => {
 
     if (!user) return null;
 
-     return (
+    return (
         <Link to="/profile" className="block p-3 mb-6 rounded-lg bg-brand-subtle/30 hover:bg-brand-subtle transition-colors">
             <div className="flex items-center gap-3">
                 <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -68,6 +68,19 @@ const UserProfileLink: React.FC = () => {
         </Link>
     );
 };
+
+// Define the new Prism logo as a reusable component
+const Logo: React.FC<{className?: string}> = ({ className }) => (
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <defs>
+            <linearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#8A5CF4" />
+                <stop offset="100%" stopColor="#2DD4BF" />
+            </linearGradient>
+        </defs>
+        <path d="M 50,10 L 90,80 L 10,80 Z" fill="url(#logoGradient)" />
+    </svg>
+);
 
 const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
   const { user } = useAppContext();
@@ -114,16 +127,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout }) => {
 
     fetchCounts();
     
-    // TODO: Set up real-time listeners for invites and applications to keep counts updated.
-
-  }, [user?.id]); // FIX: Depend on the stable user ID, not the whole object.
+  }, [user?.id]);
 
   return (
     <aside className="w-64 bg-brand-surface p-6 flex flex-col justify-between border-r border-brand-subtle">
       <div>
         <div className="flex items-center mb-8">
-            <div className="w-10 h-10 bg-gradient-to-br from-brand-primary to-brand-secondary rounded-lg"></div>
-            <h1 className="text-xl font-bold ml-3 text-brand-text">Creator's Nexus</h1>
+            <Logo className="w-10 h-10" />
+            <h1 className="text-xl font-bold ml-3 text-brand-text">Prism</h1>
         </div>
         <UserProfileLink />
         <nav className="space-y-2">

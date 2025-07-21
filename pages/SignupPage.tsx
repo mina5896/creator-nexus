@@ -6,6 +6,19 @@ import Textarea from '../components/ui/Textarea';
 import { supabase } from '../supabaseClient';
 import Spinner from '../components/ui/Spinner';
 
+// Define the new Prism logo as a reusable component
+const Logo: React.FC<{className?: string}> = ({ className }) => (
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <defs>
+            <linearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#8A5CF4" />
+                <stop offset="100%" stopColor="#2DD4BF" />
+            </linearGradient>
+        </defs>
+        <path d="M 50,10 L 90,80 L 10,80 Z" fill="url(#logoGradient)" />
+    </svg>
+);
+
 const SignupPage: React.FC = () => {
   const [formData, setFormData] = useState({
       name: '',
@@ -37,7 +50,6 @@ const SignupPage: React.FC = () => {
         },
       });
       if (error) throw error;
-      // After successful sign-up, navigate to the dashboard.
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
@@ -50,10 +62,10 @@ const SignupPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-brand-background p-4">
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-brand-primary to-brand-secondary rounded-2xl"></div>
+            <Logo className="w-16 h-16" />
         </div>
-        <h1 className="text-3xl font-bold text-center text-brand-text mb-2">Create Your Account</h1>
-        <p className="text-center text-brand-text-muted mb-8">Join the Creator's Nexus community.</p>
+        <h1 className="text-3xl font-bold text-center text-brand-text mb-2">Create Your Prism Account</h1>
+        <p className="text-center text-brand-text-muted mb-8">Join the Prism community.</p>
         
         <div className="bg-brand-surface border border-brand-subtle rounded-xl shadow-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
