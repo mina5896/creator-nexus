@@ -1,3 +1,6 @@
 {
-  "imports": {}
+  "imports": {
+    "std/http/server.ts": "https://deno.land/std@0.177.0/http/server.ts",
+    "@google/genai": "npm:@google/generative-ai@0.12.0"
+  }
 }

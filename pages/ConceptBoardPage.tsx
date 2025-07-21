@@ -13,7 +13,6 @@ interface ProjectConcept {
   title: string;
   description: string;
   rolesNeeded: string[];
-  imagePrompt: string;
 }
 
 const ConceptBoardPage: React.FC = () => {
@@ -21,7 +20,8 @@ const ConceptBoardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAppContext();
 
-  const { concept, conceptArt } = (location.state || {}) as { concept: ProjectConcept | undefined; conceptArt: string | undefined };
+  // We no longer receive conceptArt from the previous page
+  const { concept } = (location.state || {}) as { concept: ProjectConcept | undefined };
   
   const [formData, setFormData] = useState({
       title: concept?.title || '',
@@ -34,11 +34,12 @@ const ConceptBoardPage: React.FC = () => {
   const [currentRole, setCurrentRole] = useState(CREATIVE_ROLES[roleCategory][0]);
 
   useEffect(() => {
-    if (!concept || !conceptArt) {
+    // We only need to check for the concept now
+    if (!concept) {
       alert("No concept data found. Redirecting to start over.");
       navigate('/create-project');
     }
-  }, [concept, conceptArt, navigate]);
+  }, [concept, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -68,7 +69,8 @@ const ConceptBoardPage: React.FC = () => {
                 title: formData.title,
                 description: formData.description,
                 is_public: formData.isPublic,
-                image_url: `data:image/jpeg;base64,${conceptArt}`,
+                // Use a default placeholder image URL
+                image_url: `https://picsum.photos/seed/${formData.title.replace(/\s/g, '-')}/1280/720`,
                 status: 'planning',
                 budget_total: 0, // Default budget
                 budget_spent: 0,
@@ -90,7 +92,7 @@ const ConceptBoardPage: React.FC = () => {
 
         alert('Project created successfully!');
         navigate(`/project/${newProject.id}`); // Navigate to the new project's detail page
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error creating project:", error);
         alert(`Failed to create project: ${error.message}`);
     } finally {
@@ -98,7 +100,7 @@ const ConceptBoardPage: React.FC = () => {
     }
   };
 
-  if (!concept || !conceptArt) return null; // Render nothing while redirecting
+  if (!concept) return null; // Render nothing while redirecting
 
   return (
     <div>
@@ -112,8 +114,8 @@ const ConceptBoardPage: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        <div className="lg:col-span-3">
+      {/* The main grid now has one centered column */}
+      <div className="max-w-3xl mx-auto">
             <Card>
                 <div className="space-y-6">
                     <Input label="Project Title" name="title" value={formData.title} onChange={handleInputChange} />
@@ -154,15 +156,6 @@ const ConceptBoardPage: React.FC = () => {
                       </div>
                 </div>
             </Card>
-        </div>
-        <div className="lg:col-span-2">
-            <Card>
-                <h3 className="text-lg font-semibold text-brand-text mb-3">AI-Generated Concept Art</h3>
-                <div className="aspect-video bg-brand-background rounded-lg overflow-hidden">
-                    <img src={`data:image/jpeg;base64,${conceptArt}`} alt="AI-generated concept art" className="w-full h-full object-cover" />
-                </div>
-            </Card>
-        </div>
       </div>
       
       <div className="mt-8 flex justify-center gap-4">

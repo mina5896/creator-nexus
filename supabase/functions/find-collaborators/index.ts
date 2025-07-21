@@ -1,23 +1,41 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from 'npm:@google/generative-ai@0.12.0';
+import { serve } from "std/http/server.ts";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Helper function to extract JSON from a string
+const extractJson = (text: string) => {
+    const startIndex = text.indexOf('['); // This one starts with an array
+    const endIndex = text.lastIndexOf(']');
+    if (startIndex === -1 || endIndex === -1) {
+        throw new Error("AI response did not contain a valid JSON array.");
+    }
+    const jsonString = text.substring(startIndex, endIndex + 1);
+    return JSON.parse(jsonString);
+}
 
 serve(async (req) => {
-  // 1. Get the API Key and request body
-  const API_KEY = Deno.env.get('GEMINI_API_KEY');
-  if (!API_KEY) {
-    return new Response(JSON.stringify({ error: 'Missing GEMINI_API_KEY' }), { status: 500 });
-  }
-
-  const { projectDescription, rolesNeeded } = await req.json();
-  if (!projectDescription || !rolesNeeded) {
-    return new Response(JSON.stringify({ error: 'Missing projectDescription or rolesNeeded' }), { status: 400 });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!API_KEY) {
+      throw new Error('Missing GEMINI_API_KEY');
+    }
 
-    // 2. Construct the prompt for the AI
+    const { projectDescription, rolesNeeded } = await req.json();
+    if (!projectDescription || !rolesNeeded) {
+      return new Response(JSON.stringify({ error: 'Missing projectDescription or rolesNeeded' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    
     const prompt = `
       You are an expert talent scout for creative projects.
       Based on the following project description and list of missing roles, generate a list of suitable, fictional creator portfolios.
@@ -53,7 +71,6 @@ serve(async (req) => {
       ]
     `;
 
-    // 3. Call the AI and get the response
     const result = await model.generateContent(prompt, {
         safetySettings: [
             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -63,17 +80,20 @@ serve(async (req) => {
         ]
     });
     const response = await result.response;
-    const candidates = JSON.parse(response.text());
+    // Use the helper function to safely parse the JSON
+    const candidates = extractJson(response.text());
 
-    // 4. Return the result
     return new Response(JSON.stringify(candidates), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
   } catch (error) {
-    console.error(error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { 'Content-Type': 'application/json' },
+    console.error("Function Error:", error);
+    return new Response(JSON.stringify({ 
+        error: "An internal error occurred.",
+        details: error.message || "No specific error message available." 
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
   }

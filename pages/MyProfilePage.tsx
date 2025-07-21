@@ -9,7 +9,7 @@ import { CREATIVE_ROLES, AVATARS } from '../constants';
 import { User } from '../types';
 
 const MyProfilePage: React.FC = () => {
-  const { user, loading: userLoading } = useAppContext();
+  const { user, loading: userLoading, refetchUser } = useAppContext();
   const [isEditing, setIsEditing] = useState(false);
   
   const [formData, setFormData] = useState<Partial<User>>({});
@@ -85,7 +85,7 @@ const MyProfilePage: React.FC = () => {
     if (error) {
       alert("Error updating profile: " + error.message);
     } else {
-      alert('Profile updated successfully! The changes will be reflected shortly.');
+      await refetchUser();
       handleToggleEdit(false);
     }
   };

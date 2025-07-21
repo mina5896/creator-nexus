@@ -32,14 +32,13 @@ const CreateProjectPage: React.FC = () => {
         throw new Error(functionError.message);
       }
       
-      // The function returns both the concept and the base64 image string
-      const { concept, conceptArt } = data;
+      // The function now only returns the concept object
+      const { concept } = data;
 
-      // Navigate to the concept board with the generated data
+      // Navigate to the concept board with only the concept data
       navigate('/create/concept', { 
         state: { 
-          concept,
-          conceptArt
+          concept
         } 
       });
 
